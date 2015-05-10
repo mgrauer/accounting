@@ -1,18 +1,43 @@
+import json
 
 class Accounts():
 
     def __init__(self):
         self.accounts = []
+        self.names = {}
+        self.shortNames = {}
 
     def addAccount(self, account):
         self.accounts.append(account)
+        self.shortNames[account.shortName] = account
+        self.shortNames[account.shortName.lower()] = account
+        self.names[account.name] = account
+        self.names[account.name.lower()] = account
 
     def balances(self):
         print('Balances')
         for account in self.accounts:
             account.status()
-   
-accounts = Accounts() 
+        print('Total debits and credits')
+        debs, creds = 0, 0
+        for a in self.accounts:
+            debs += a.debits
+            creds += a.credits
+        print('%d\t%d' % (debs, creds))
+        if creds != debs:
+            raise Exception('Total credits and debits unequal')
+
+    def find(self, name):
+        if name in self.shortNames:
+            return self.shortNames[name]
+        if name in self.names:
+            return self.names[name]
+        raise Exception('Account %s not found' % name) 
+
+
+
+
+accounts = Accounts()
 
 class Account:
 
@@ -61,50 +86,37 @@ class Credit(Account):
     def decrease(self, amount):
         self.debits += amount
 
-def txn(debitAccounts, creditAccounts, amount=None):
-    if amount is not None:
-        # shorthand for a simple transaction
-        debitAccounts = [(debitAccounts, amount)]
-        creditAccounts = [(creditAccounts, amount)]
+def txn(debitAccounts, creditAccounts):#, amount=None):
     totalDebits = sum([a for d,a in debitAccounts])
     totalCredits = sum([a for d,a in creditAccounts])
     if totalDebits != totalCredits:
         raise Exception("Total credits != total debits")
     print('TXN')
     for d,a in debitAccounts:
+        d = accounts.find(d)
         d.debit(a)
         print(('Dr. %s %d') % (d.shortName, a))
     for c,a in creditAccounts:
+        c = accounts.find(c)
         c.credit(a)
         print(('\tCr. %s %d') % (c.shortName, a))
 
 
+def createAccountsJson(filepath):
+    def getNames(account):
+        if 'shortName' not in account:
+            shortName = ''.join([word[0:3] for word in account['name'].split()])
+        else:
+            shortName = account['shortName']
+        if shortName in accounts.shortNames:
+            raise Exception('shortname %s clash' % shortName)
+        return account['name'], shortName
 
-
-debits = [('cash', 'cash'),
-          ('inventory', 'i'),
-          ('accounts receivable', 'ar'),
-          ('notes receivable', 'nr')]
-credits = [('accounts payable', 'ap'),
-          ('common stock', 'cs'),
-          ('additional paid in capital', 'apic'),
-          ('notes payable', 'np')]
-
-drs = {}
-for name, shortName in debits:
-    debit = Debit(name, shortName)
-    drs[name] = debit
-    drs[shortName] = debit
-
-crs = {}
-for name, shortName in credits:
-    credit = Credit(name, shortName)
-    crs[name] = credit
-    crs[shortName] = credit
-
-txn(drs['cash'], crs['np'], 100)
-txn(crs['np'], drs['cash'], 20)
-txn(drs['i'], drs['cash'], 10)
-txn(crs['np'], crs['cs'], 80)
-txn([(drs['cash'], 150000)], [(crs['cs'], 50000), (crs['apic'], 100000)])
-accounts.balances()
+    with open(filepath, 'r') as json_data:
+        accountsJson = json.load(json_data)
+        for account in accountsJson['debits']:
+            name, shortName = getNames(account)
+            debit = Debit(name, shortName)
+        for account in accountsJson['credits']:
+            name, shortName = getNames(account)
+            credit = Credit(name, shortName)
